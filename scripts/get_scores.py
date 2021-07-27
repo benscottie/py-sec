@@ -42,8 +42,8 @@ class ItemSentiment():
     
     def run(self):
         # Search DataBase for Records
-        engine = create_postgress_engine(username='benscottie',
-                                        password='Bethel2001$', 
+        engine = create_postgress_engine(username='',
+                                        password='', 
                                         dialect_driver='postgresql', 
                                         host='sec-test.csfr6b0gmrjt.us-east-1.rds.amazonaws.com',
                                         port='5432', 
