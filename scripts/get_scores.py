@@ -7,10 +7,11 @@ from scripts.db_utils import (create_postgress_engine,
                               select_record,
                               add_filing_data)
 
-# from scripts.data_utils import get_audits, parse_audits
+from scripts.data_utils import parse_item
 
 class ItemSentiment():
     def __init__(self, data):
+        self.output_dir = ''
         self.table_name = 'item_sentiment'
         self.company = data['company']
         self.year = data['year']
@@ -42,8 +43,8 @@ class ItemSentiment():
     
     def run(self):
         # Search DataBase for Records
-        engine = create_postgress_engine(username='',
-                                        password='', 
+        engine = create_postgress_engine(username='benscottie',
+                                        password='Bethel2001$', 
                                         dialect_driver='postgresql', 
                                         host='sec-test.csfr6b0gmrjt.us-east-1.rds.amazonaws.com',
                                         port='5432', 
@@ -59,11 +60,9 @@ class ItemSentiment():
         # If records returned from database, send records
         # If no records returned from database, retrieve, parse, score, and store filings
         if not records:
-            # filing = get_audits()
-            # parsed_filing = parse_audits(filing)
-            parsed_filing = {'company': 'GOOG', 'date': '09/02/2020', 'text': 'hello world'}
-            sentiment_score = self.predict(parsed_filing['text'])
-            records = parsed_filing
+            records = parse_item(self.company, self.output_dir)
+            # parsed_filing = {'company': 'GOOG', 'date': '09/02/2020', 'text': 'hello world'}
+            sentiment_score = self.predict(records['text'])
             records['sentiment'] = round(sentiment_score, 4)
 
             add_filing_data(engine, records, table_name=self.table_name)
