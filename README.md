@@ -18,5 +18,5 @@
     ```
 
 ## run app
-The app can be run by calling `flask run` or `python app.py` from command line
+The app can be run by calling either `flask run` or `python app.py` from the command line
 within the root directory and specificed virutal environment.
