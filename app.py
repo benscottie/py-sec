@@ -11,15 +11,13 @@ def home():
 
 @app.route('/', methods=['GET', 'POST'])
 def results():
-    data = {
-        'company': 'GOOG',
-        'year': 2020
-    }
-    #data = {
-      #  'company': request.form['company'],
-       # 'year': request.form['year']
-    # }
-    scorer = ItemSentiment(data)
+    data = [{
+        'company': 'AAPL',
+        'before_year': 2021,
+        'after_year': 2000
+    }]
+    # data = request.json
+    scorer = ItemSentiment(data[0])
     records = scorer.run()
     return jsonify(records)
 
