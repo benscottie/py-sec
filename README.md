@@ -11,6 +11,7 @@
    
     ```
     FLASK_APP=app.py
+    FLASK_ENV=development
     FLASK_DEBUG=0
     DB_NAME=<database name>
     DB_USER=<your username>
