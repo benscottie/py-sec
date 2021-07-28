@@ -59,6 +59,7 @@ class ItemSentiment():
                                         host='sec-test.csfr6b0gmrjt.us-east-1.rds.amazonaws.com',
                                         port='5432', 
                                         database=os.getenv('DB_NAME')) # connect
+        
         print(f'Checking Database for Filing(s)...')
         records = select_record(engine, 
                         self.table_name, 
@@ -72,24 +73,22 @@ class ItemSentiment():
         requested_dates = [i for i in range(self.after_yr, self.before_yr)]
         missing_dates = list(set(requested_dates) - set(available_dates))
         print(f'Missing Records for Year(s) {missing_dates}')
+
         if missing_dates:
             print(f'Filing(s) not in database, retrieving filing(s) for {self.company} between {self.after_yr} & {self.before_yr}...')
             fpaths = get_audits(self.company, self.before_yr, self.after_yr, self.output_dir)
             
-            print(f'{len(fpaths)} files retrieved, parsing items...')
-            # records = parse_item(self.company, self.output_dir)
+            print(f'{len(fpaths)} file(s) retrieved, parsing items...')
             with multiprocessing.Pool(4) as pool:
                 records_new = pool.starmap(parse_item, [(path, self.company, self.output_dir) for path in fpaths])
             
             # Get Year Value from Date
-            year_fn = lambda x: datetime.strptime(x['date'], '%Y%m%d').year
+            year_fn = lambda x: datetime.strptime(x['date'], '%B %d, %Y').year
             records_new = [dict(r, year=year_fn(r)) for r in records_new]
             # Only Keep Missing Records
             records_new = [r for r in records_new if r['year'] in missing_dates]
             
             print(f'Record(s) parsed, predicting sentiment for item(s)...')
-            #sentiment_score = self.predict(records['text'])
-            #records['sentiment'] = round(sentiment_score, 4)
             text = [r['item_text'] for r in records_new]
             with multiprocessing.Pool(4) as pool:
                 sentiment_scores = pool.map(self.predict, text)
@@ -100,7 +99,7 @@ class ItemSentiment():
             records = sorted(records, key = lambda i: i['sentiment_score'], reverse=True)
             records = [dict(r, rank=i+1) for i,r in enumerate(records)]
             
-            print(f'Adding filing(s) to database...')
+            print(f'Adding new filing(s) to database...')
             add_filing_data(engine, records_new, self.table_name)
             
             print(f'Information ready')

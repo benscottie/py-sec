@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import os
 import glob
 import shutil
+import re
 
 def get_audits(ticker: str, before_yr: int, after_yr: int, output_dir: str):
     dl = Downloader(output_dir)
@@ -19,34 +20,41 @@ def load_html(fpath: str):
 def del_sec_dir(output_dir: str):
     shutil.rmtree(os.path.join(output_dir, 'sec-edgar-filings'))
 
+def get_date(txt: str):
+    date = txt.split('fiscal year ended')[1].split()[0:3]
+    date[2] = re.sub('\D', '', date[2])
+    return ' '.join(date).capitalize()
+
 def parse_item(fpath:str, ticker: str, output_dir: str):
     # Download Filing
     # fpath = get_audits(ticker, output_dir)
     # Load HTML
     filing = load_html(fpath)
 
-    # Get Filing Date and Text from HTML
+    # Get & Clean Text from HTML
     soup = BeautifulSoup(filing, 'html.parser')
     txt = soup.get_text().lower()
     txt = txt.replace('\xa0', ' ')
+    txt = re.sub('\n', '', txt)
+
+    # Get Filing Date
+    date = get_date(txt)
       
     # Parse Item 7
-    date = '20200101'
-    item = 'hello world'
-    """try:
-        date = soup.title.get_text().split('-')[1]
-        item = txt.split('item 7.')
+    try:
+        item = txt.split("item 7.")
         if len(item) == 3:
-            item = item[2]
-        elif len(item) == 2:
+            if len(item[2]) > len(item[1]):
+                item = item[2]
+            elif len(item[1]) > len(item[2]):
+                item = item[1]
+        elif len(item)==2:
             item = item[1]
-        else:
-            print('ERROR')
-        item = item.split('Item 8.')[0]
-        item = item.replace('\xa0', '')
-    except:
+        item = item.split("item 7a.")[0].strip()
+    except IndexError as e:
+        print(e)
         item = ''
-        date = '19960106'"""
+        pass
 
     # Delete Downloaded Directory
     # del_sec_dir(output_dir)
