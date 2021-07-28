@@ -61,14 +61,19 @@ def add_filing_data(
     ):
     meta = MetaData()
     table = Table(table_name, meta, autoload=True, autoload_with=engine)
-
-    stmt = insert(table).values(company=filing_dict['company'], 
+    
+    with engine.connect() as conn:
+        result = conn.execute(
+            insert(table),
+            filing_dict
+        )
+    """stmt = insert(table).values(company=filing_dict['company'], 
                                 date=filing_dict['date'],
-                                year=datetime.strptime(filing_dict['date'], '%m/%d/%Y').year,
+                                year=datetime.strptime(filing_dict['date'], '%Y%m%d').year,
                                 item_text=filing_dict['text'], 
                                 sentiment_score=filing_dict['sentiment'])
     with engine.connect() as conn:
-       result = conn.execute(stmt)
+       result = conn.execute(stmt)"""
 
 def delete_record(
     engine,
@@ -92,32 +97,15 @@ def select_record(
     engine,
     table_name: str,
     company: str,
-    most_recent=True,
-    year=None,
-    sentiment_score=False,
-    top_n=5
+    after_yr: int,
+    before_yr: int
     ):
-    meta = MetaData()
-    table = Table(table_name, meta, autoload=True, autoload_with=engine)
-    if most_recent==True:
-        sql = f"select * from item_sentiment where company = '{company}'"
-        with engine.connect() as con:
-            df = pd.read_sql_query(sql, con=con)
-        d = df.sort_values('date', ascending=False).head(1).to_dict('records')
-
-    elif year:
-        sql = f"""SELECT * from item_sentiment 
-         WHERE company = '{company}' AND year = {year}"""
-        with engine.connect() as con:
-            df = pd.read_sql_query(sql, con=con)
-        d = df.to_dict('records')
-
-    elif sentiment_score==True:
-        sql = f"select * from item_sentiment where company = '{company}'"
-        with engine.connect() as con:
-            df = pd.read_sql_query(sql, con=con)
-        d = df.sort_values('sentiment_score', ascending=False).head(top_n).to_dict('records')
-        d = [dict(item, rank=i+1) for i,item in enumerate(d)]
+    sql = f"""SELECT * from {table_name}
+          WHERE company = '{company}'
+          AND year BETWEEN {after_yr} AND {before_yr}"""
+    with engine.connect() as con:
+        df = pd.read_sql_query(sql, con=con)
+    d = df.to_dict('records')
     
     return d
         
