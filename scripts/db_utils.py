@@ -35,7 +35,10 @@ def create_table(engine, table_name: str):
         Column('date', Date),
         Column('year', Integer),
         Column('item_text', String),
-        Column('sentiment_score', Float)
+        Column('sentiment_scores', String),
+        Column('average_sentiment_score', Float),
+        Column('maximum_sentiment_score', Float),
+        Column('negative_section', String)
     )
     # meta.create_all(engine)
     table.create(engine)
@@ -49,7 +52,10 @@ def drop_table(engine, table_name):
         Column('date', Date),
         Column('year', Integer),
         Column('item_text', String),
-        Column('sentiment_score', Float)
+        Column('sentiment_scores', String),
+        Column('average_sentiment_score', Float),
+        Column('maximum_sentiment_score', Float),
+        Column('negative_section', String)
     )
     # meta.drop_all(engine)
     table.drop(engine)

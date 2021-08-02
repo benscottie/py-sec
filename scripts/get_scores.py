@@ -1,10 +1,14 @@
 # Libraries
-import multiprocessing
-from datetime import datetime
 import os
 from dotenv import load_dotenv
 
+import numpy as np
+import multiprocessing
+from datetime import datetime
+
 import torch
+import torch.nn.functional as F
+
 from transformers import AutoTokenizer
 from transformers import AutoModelForSequenceClassification
 
@@ -12,9 +16,16 @@ from scripts.db_utils import (create_postgress_engine,
                               select_record,
                               add_filing_data)
 
-from scripts.data_utils import parse_item, get_audits, del_sec_dir
+from scripts.data_utils import parse_item_sections, get_audits, del_sec_dir
 
 load_dotenv()
+
+def sections2sql(records):
+    for d in records:
+        for k,v in d.items():
+            if k == 'sentiment_scores':
+                d[k] = '\n'.join([str(n) for n in v])
+    return records
 
 class ItemSentiment():
     def __init__(self, data):
@@ -25,7 +36,8 @@ class ItemSentiment():
         self.after_yr = data['after_year']
         self.top_n = 5
 
-        self.model_path = 'lvwerra/bert-imdb'
+        self.batch_size = 1
+        self.model_path = 'ProsusAI/finbert'
         self.device = self.get_device('cpu')
         self.model = self.get_model()
         self.tokenizer = self.get_tokenizer()
@@ -44,12 +56,20 @@ class ItemSentiment():
     def get_tokenizer(self):
         return AutoTokenizer.from_pretrained(self.model_path)
     
-    def predict(self, text):
-        input_ids = self.tokenizer(text, truncation=True, padding=True, return_tensors='pt').input_ids.to(self.device)
-        logits = self.model(input_ids).logits
-        score = torch.sigmoid(logits).squeeze().tolist()[1]
-        return score
-    
+    def predict(self, sections):
+        # Get sentiment score for each section in Item 7 of filing
+        sentiment = []
+        # batches = [sections[i:i+self.batch_size] for i in range(0, len(sections), self.batch_size)]
+        for text in sections:
+            input_ids = self.tokenizer(text, truncation=True, padding=True, return_tensors='pt').input_ids.to(self.device)
+            with torch.no_grad():
+                logits = self.model(input_ids).logits
+            print(logits)
+            print(F.softmax(logits, dim=0))
+            score = F.softmax(logits, dim=1).squeeze().tolist()[1]
+            sentiment.append(round(score, 4))
+        return sentiment
+
     def run(self):
         # Search DataBase for Records
         print(f'Connecting to Database...')
@@ -80,7 +100,7 @@ class ItemSentiment():
             
             print(f'{len(fpaths)} file(s) retrieved, parsing items...')
             with multiprocessing.Pool(4) as pool:
-                records_new = pool.starmap(parse_item, [(path, self.company, self.output_dir) for path in fpaths])
+                records_new = pool.starmap(parse_item_sections, [(path, self.company, self.output_dir) for path in fpaths])
             
             # Get Year Value from Date
             year_fn = lambda x: datetime.strptime(x['date'], '%B %d, %Y').year
@@ -89,18 +109,24 @@ class ItemSentiment():
             records_new = [r for r in records_new if r['year'] in missing_dates]
             
             print(f'Record(s) parsed, predicting sentiment for item(s)...')
-            text = [r['item_text'] for r in records_new]
+            sections = [r['item_sections'] for r in records_new]
             with multiprocessing.Pool(4) as pool:
-                sentiment_scores = pool.map(self.predict, text)
-            records_new = [dict(r, sentiment_score=round(score, 4)) for r,score in zip(records_new, sentiment_scores)]
-            
+                sentiment_scores = pool.map(self.predict, sections)
+
+            records_new = [dict(r, sentiment_scores=scores) for r,scores in zip(records_new, sentiment_scores)] # add sentiment scores for each section to records
+            records_new = [dict(r, average_sentiment_score=round(np.mean(scores), 4) if scores else 0.0) for r, scores in zip(records_new, sentiment_scores)] # add average sentiment score for each filing (across all sections) to records
+            records_new = [dict(r, maximum_sentiment_score=np.max(scores, initial=0.0)) for r, scores in zip(records_new, sentiment_scores)] # add lowest sentiment score for each filing (across all sections) to records
+            max_idx = [np.argmax(score) if score else None for score in sentiment_scores]
+            records_new = [dict(r, negative_section=r['item_sections'][idx] if idx else '') for r, idx in zip(records_new, max_idx)] # add text corresponding to lowest sentiment score for each filing
+
             # Sort and Rank Records
             records = records + records_new
-            records = sorted(records, key = lambda i: i['sentiment_score'], reverse=True)
+            records = sorted(records, key = lambda i: i['maximum_sentiment_score'], reverse=True)
             records = [dict(r, rank=i+1) for i,r in enumerate(records)]
             
             print(f'Adding new filing(s) to database...')
-            add_filing_data(engine, records_new, self.table_name)
+            records_sql = sections2sql(records_new)
+            add_filing_data(engine, records_sql, self.table_name)
             
             print(f'Information ready')
             # Delete Downloaded Directory
