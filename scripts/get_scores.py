@@ -36,7 +36,7 @@ class ItemSentiment():
         self.after_yr = data['after_year']
         self.top_n = 5
 
-        self.batch_size = 1
+        self.batch_size = 4
         self.model_path = 'ProsusAI/finbert'
         self.device = self.get_device('cpu')
         self.model = self.get_model()
@@ -59,15 +59,17 @@ class ItemSentiment():
     def predict(self, sections):
         # Get sentiment score for each section in Item 7 of filing
         sentiment = []
-        # batches = [sections[i:i+self.batch_size] for i in range(0, len(sections), self.batch_size)]
-        for text in sections:
-            input_ids = self.tokenizer(text, truncation=True, padding=True, return_tensors='pt').input_ids.to(self.device)
+        batches = [sections[i:i+self.batch_size] for i in range(0, len(sections), self.batch_size)]
+        for batch in batches:
+            input_ids = self.tokenizer(batch, truncation=True, padding=True, return_tensors='pt').input_ids.to(self.device)
             with torch.no_grad():
                 logits = self.model(input_ids).logits
-            print(logits)
-            print(F.softmax(logits, dim=0))
-            score = F.softmax(logits, dim=1).squeeze().tolist()[1]
-            sentiment.append(round(score, 4))
+
+            # score = F.softmax(logits, dim=1).squeeze().tolist()[1]
+            # sentiment.append(round(score, 4))
+            scores = F.softmax(logits, dim=1)
+            neg_scores = [round(s[1], 4)for s in scores.tolist()]
+            sentiment.extend(neg_scores)
         return sentiment
 
     def run(self):
@@ -80,7 +82,7 @@ class ItemSentiment():
                                         port='5432', 
                                         database=os.getenv('DB_NAME')) # connect
         
-        print(f'Checking Database for Filing(s)...')
+        print(f'Checking Database for Filing(s) for {self.company} between {self.after_yr} & {self.before_yr}...')
         records = select_record(engine, 
                         self.table_name, 
                         company=self.company, 
@@ -119,17 +121,19 @@ class ItemSentiment():
             max_idx = [np.argmax(score) if score else None for score in sentiment_scores]
             records_new = [dict(r, negative_section=r['item_sections'][idx] if idx else '') for r, idx in zip(records_new, max_idx)] # add text corresponding to lowest sentiment score for each filing
 
-            # Sort and Rank Records
+            # Combine Records
             records = records + records_new
-            records = sorted(records, key = lambda i: i['maximum_sentiment_score'], reverse=True)
-            records = [dict(r, rank=i+1) for i,r in enumerate(records)]
             
             print(f'Adding new filing(s) to database...')
             records_sql = sections2sql(records_new)
             add_filing_data(engine, records_sql, self.table_name)
             
-            print(f'Information ready')
             # Delete Downloaded Directory
             del_sec_dir(self.output_dir)
+        
+        # Sort and Rank Records
+        records = sorted(records, key = lambda i: i['maximum_sentiment_score'], reverse=True)
+        records = [dict(r, rank=i+1) for i,r in enumerate(records)]
+        print(f'Information ready')
 
         return records[:self.top_n]
