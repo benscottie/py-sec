@@ -10,7 +10,6 @@ from sqlalchemy import (create_engine,
                         delete,
                         text)
 import pandas as pd
-from datetime import datetime
 
 def create_postgress_engine(
     username: str,

@@ -27,6 +27,11 @@ def sections2sql(records):
                 d[k] = '\n'.join([str(n) for n in v])
     return records
 
+def date_format(records):
+    for r in records:
+            r.update((k, datetime.strftime(v, '%B %d, %Y')) for k,v in r.items() if k == 'date') 
+    return records
+
 class ItemSentiment():
     def __init__(self, data):
         self.output_dir = ''
@@ -88,7 +93,8 @@ class ItemSentiment():
                         company=self.company, 
                         after_yr=self.after_yr, 
                         before_yr=self.before_yr)
-        
+        # change date format
+        records = date_format(records)
         # If records returned from database, send records
         # If full records are not returned from database, retrieve, parse, score, and store new filings
         available_dates = [r['year'] for r in records]
@@ -136,4 +142,5 @@ class ItemSentiment():
         records = [dict(r, rank=i+1) for i,r in enumerate(records)]
         print(f'Information ready')
 
-        return records[:self.top_n]
+        # return records[:self.top_n]
+        return records
