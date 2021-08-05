@@ -7,8 +7,8 @@ app = Flask(__name__)
 def results():
     """data = [{
         'company': 'AAPL',
-        'before_year': 2021,
-        'after_year': 2000
+        'before_year': 2020,
+        'after_year': 2018
     }]"""
     data = request.json
     scorer = ItemSentiment(data[0])
