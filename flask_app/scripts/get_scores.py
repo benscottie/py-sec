@@ -98,17 +98,19 @@ class ItemSentiment():
         # records = date_format(records)
 
         # If records returned from database, send records
-        # If full records are not returned from database, retrieve, parse, score, and store new filings
         records = []
         available_dates = [r['year'] for r in records]
         requested_dates = [i for i in range(self.after_yr, self.before_yr)]
         missing_dates = list(set(requested_dates) - set(available_dates))
         print(f'Missing Records for Year(s) {missing_dates}')
 
+        # If full records are not returned from database, retrieve, parse, score, and store new filings
         if missing_dates:
+            # Get 10-K file paths
             print(f'Filing(s) not in database, retrieving filing(s) for {self.company} between {self.after_yr} & {self.before_yr}...')
             fpaths = get_audits(self.company, self.before_yr, self.after_yr, self.output_dir)
             
+            # Parse Item 7 sections from extracted filings
             print(f'{len(fpaths)} file(s) retrieved, parsing items...')
             with multiprocessing.Pool(4) as pool:
                 records_new = pool.starmap(parse_item_sections, [(path, self.company, self.output_dir) for path in fpaths])
@@ -119,6 +121,7 @@ class ItemSentiment():
             # Only Keep Missing Records
             records_new = [r for r in records_new if r['year'] in missing_dates]
             
+            # Get Negative Sentiment Scores for Item 7 Sections
             print(f'Record(s) parsed, predicting sentiment for item(s)...')
             sections = [r['item_sections'] for r in records_new]
             sentiment_scores = [self.predict(s) for s in sections]
@@ -132,6 +135,7 @@ class ItemSentiment():
             # Combine Records
             records = records + records_new
             
+            # Store new filings in database
             print(f'Adding new filing(s) to database...')
             # records_sql = sections2sql(records_new)
             # add_filing_data(engine, records_sql, self.table_name)

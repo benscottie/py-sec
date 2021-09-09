@@ -4,13 +4,17 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 
+# URL to API Endpoint
 URL = 'http://flask_app:5000/'
 
+# Cache Results
 @st.cache(show_spinner=False)
+
+# Request records from API
 def api_call(url, company, before_year, after_year):
     data = [{'company': company,
-                              'before_year': before_year,
-                              'after_year': after_year}]
+             'before_year': before_year,
+             'after_year': after_year}]
     r = requests.post(url, 
                       json=data)
 
