@@ -1,0 +1,26 @@
+version: '3'
+
+services:
+    flask_app:
+        build: ./flask_app
+        ports: 
+            - 5000:5000
+        networks:
+            - deploy_network
+        env_file: 
+            - ./flask_app/.env
+        container_name: flask_app
+    
+    dash_app:
+        build: ./dash_app
+        depends_on:
+            - flask_app
+        ports:
+            - 8501:8501
+        networks:
+            - deploy_network
+        container_name: dash_app
+
+networks:
+    deploy_network:
+        driver: bridge
