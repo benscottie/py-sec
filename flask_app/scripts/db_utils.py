@@ -68,10 +68,9 @@ def add_filing_data(
     table = Table(table_name, meta, autoload=True, autoload_with=engine)
     
     with engine.connect() as conn:
-        result = conn.execute(
-            insert(table),
-            filing_dict
-        )
+        result = conn.execute(insert(table),
+                              filing_dict)
+                              
     """stmt = insert(table).values(company=filing_dict['company'], 
                                 date=filing_dict['date'],
                                 year=datetime.strptime(filing_dict['date'], '%Y%m%d').year,
