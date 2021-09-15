@@ -14,6 +14,7 @@ from transformers import AutoTokenizer
 from transformers import AutoModelForSequenceClassification
 
 from scripts.db_utils import (create_postgress_engine,
+                              create_table,
                               select_record,
                               add_filing_data)
 
@@ -82,23 +83,27 @@ class ItemSentiment():
         print(f'Connecting to Database...')
         engine = create_postgress_engine(username=os.getenv('DB_USER'),
                                         password=os.getenv('DB_PASSWORD'), 
-                                        dialect_driver='postgresql', 
-                                        host='sec-test.csfr6b0gmrjt.us-east-1.rds.amazonaws.com',
+                                        dialect_driver='postgresql+psycopg2', 
+                                        host='database',
                                         port='5432', 
                                         database=os.getenv('DB_NAME')) # connect
+
+        try:
+            create_table(engine, self.table_name)
+        except:
+            pass
         
         print(f'Checking Database for Filing(s) for {self.company} between {self.after_yr} & {self.before_yr}...')
-        """records = select_record(engine, 
+        records = select_record(engine, 
                         self.table_name, 
                         company=self.company, 
                         after_yr=self.after_yr, 
-                        before_yr=self.before_yr)"""
+                        before_yr=self.before_yr)
         
         # change date format
-        # records = date_format(records)
+        records = date_format(records)
 
         # If records returned from database, send records
-        records = []
         available_dates = [r['year'] for r in records]
         requested_dates = [i for i in range(self.after_yr, self.before_yr)]
         missing_dates = list(set(requested_dates) - set(available_dates))
@@ -113,7 +118,7 @@ class ItemSentiment():
             # Parse Item 7 sections from extracted filings
             print(f'{len(fpaths)} file(s) retrieved, parsing items...')
             with multiprocessing.Pool(4) as pool:
-                records_new = pool.starmap(parse_item_sections, [(path, self.company, self.output_dir) for path in fpaths])
+                records_new = pool.starmap(parse_item_sections, [(path, self.company) for path in fpaths])
 
             # Get Year Value from Date
             year_fn = lambda x: datetime.strptime(x['date'], '%B %d, %Y').year
@@ -137,8 +142,8 @@ class ItemSentiment():
             
             # Store new filings in database
             print(f'Adding new filing(s) to database...')
-            # records_sql = sections2sql(records_new)
-            # add_filing_data(engine, records_sql, self.table_name)
+            records_sql = sections2sql(records_new)
+            add_filing_data(engine, records_sql, self.table_name)
             
             # Delete Downloaded Directory
             del_sec_dir(self.output_dir)
